@@ -20,20 +20,26 @@ conn = sqlite3.connect(db_name)
 c = conn.cursor()
 
 # Drop table if exists
-c.execute('DROP TABLE IF EXISTS test2')
+c.execute('DROP TABLE IF EXISTS test3')
 
 # Create table
-c.execute('CREATE TABLE IF NOT EXISTS test2 (INSTRUMENT text, STR_PRICE text, OPT_TYPE text, CLOSE_PRICE real, OPEN_INT real)')
+c.execute('CREATE TABLE IF NOT EXISTS test3 (SYMBOL text, EXP_DATE text, INSTRUMENT text, STR_PRICE text, OPT_TYPE text, CLOSE_PRICE real, OPEN_INT real, DATE text)')
 
 # Populate table
 for row in dat_reader:
-	c.execute('INSERT INTO test2 VALUES (?,?,?,?,?)', row)
+	c.execute('INSERT INTO test3 VALUES (?,?,?,?,?,?,?,?)', row)
 	
 conn.commit()
 
 # Display table
-for row in c.execute('SELECT * FROM test2 ORDER BY STR_PRICE'):
+for row in c.execute('SELECT * FROM test3 ORDER BY STR_PRICE'):
 	print(row)
+
+# Count records
+c.execute('SELECT * FROM test3')
+records = c.fetchall()
+
+print("\nRecords: ", len(records))
 
 conn.close()
 

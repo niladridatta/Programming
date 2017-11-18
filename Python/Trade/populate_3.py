@@ -27,7 +27,7 @@ c.execute('CREATE TABLE IF NOT EXISTS test2 (INSTRUMENT text, STR_PRICE text, OP
 
 # Populate table
 for row in dat_reader:
-	c.execute('INSERT INTO test2 VALUES (?,?,?,?,?)', row)
+	c.execute('INSERT INTO test2 VALUES (?,?,?,?,?,?)', row)
 	
 conn.commit()
 
