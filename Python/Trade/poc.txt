@@ -1,0 +1,111 @@
+[root@ip-172-31-31-23 Python]# cat ../Downloads/link
+https://www.nseindia.com/content/historical/DERIVATIVES/2017/NOV/fo16NOV2017bhav.csv.zip
+
+[root@ip-172-31-31-23 Python]# cat ../Downloads/down.sh
+for i in `cat link`
+do
+  wget --user-agent="Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36" $i
+done
+
++++
+
+[root@ip-172-31-31-23 Python]# ls
+example.db  fo16NOV2017bhav.csv  out_16NOV2017.csv  populate.py  wip.py  wip.py.bak.1
+
+[root@ip-172-31-31-23 Python]# sqlite3 --version
+3.7.17 2013-05-20 00:56:22 118a3b35693b134d56ebd780123b7fd6f1497668
+
+[root@ip-172-31-31-23 Python]# sqlite3 example.db
+SQLite version 3.7.17 2013-05-20 00:56:22
+
+sqlite> select count(*) from test4;
+60
+
+sqlite> .separator ", "
+
+sqlite> select * from test4 where STRIKE_PR = '9500';
+NIFTY, OPTIDX, 30-Nov-2017, 9500, CE, 743.7, 384525.0, -9000.0, 16-NOV-2017
+NIFTY, OPTIDX, 30-Nov-2017, 9500, PE, 2.75, 1556025.0, 29100.0, 16-NOV-2017
+NIFTY, OPTIDX, 28-Dec-2017, 9500, CE, 791.05, 944625.0, -900.0, 16-NOV-2017
+NIFTY, OPTIDX, 28-Dec-2017, 9500, PE, 20.3, 2593300.0, 66150.0, 16-NOV-2017
+
+sqlite> .output test_file_1.txt
+
+sqlite> select * from test4 where STRIKE_PR = '9500';
+
+[root@ip-172-31-31-23 Python]# cat test_file_1.txt
+NIFTY, OPTIDX, 30-Nov-2017, 9500, CE, 743.7, 384525.0, -9000.0, 16-NOV-2017
+NIFTY, OPTIDX, 30-Nov-2017, 9500, PE, 2.75, 1556025.0, 29100.0, 16-NOV-2017
+NIFTY, OPTIDX, 28-Dec-2017, 9500, CE, 791.05, 944625.0, -900.0, 16-NOV-2017
+NIFTY, OPTIDX, 28-Dec-2017, 9500, PE, 20.3, 2593300.0, 66150.0, 16-NOV-2017
+
++++
+
+## Converting An Entire Database To An ASCII Text File
+
+[root@ip-172-31-31-23 Python]# sqlite3 example.db .dump | gzip -c > example.dump.gz
+
+[root@ip-172-31-31-23 Python]# ls -ltr example*
+-rw-r--r-- 1 root root    6144 Nov 19 21:39 example.db
+-rw-r--r-- 1 root root    1160 Nov 19 21:49 example.dump.gz
+
+## To reconstruct the database
+
+[root@ip-172-31-31-23 Python]# zcat example.dump.gz | sqlite3 example-new.db
+
+[root@ip-172-31-31-23 Python]# ls -ltr example*
+-rw-r--r-- 1 root root    6144 Nov 19 21:39 example.db
+-rw-r--r-- 1 root root    1160 Nov 19 21:49 example.dump.gz
+-rw-r--r-- 1 root root    6144 Nov 19 21:50 example-new.db
+
+## OR Without Compression
+
+[root@ip-172-31-31-23 Python]# sqlite3 example.db .dump > example.bak
+
+[root@ip-172-31-31-23 Python]# sqlite3 example-brand-new.db < example.bak
+
+## Testing
+
+[root@ip-172-31-31-23 Python]# sqlite3 example-new.db
+SQLite version 3.7.17 2013-05-20 00:56:22
+
+sqlite> select * from test4 where STRIKE_PR = '9500';
+NIFTY|OPTIDX|30-Nov-2017|9500.0|CE|743.7|384525.0|-9000.0|16-NOV-2017
+NIFTY|OPTIDX|30-Nov-2017|9500.0|PE|2.75|1556025.0|29100.0|16-NOV-2017
+NIFTY|OPTIDX|28-Dec-2017|9500.0|CE|791.05|944625.0|-900.0|16-NOV-2017
+NIFTY|OPTIDX|28-Dec-2017|9500.0|PE|20.3|2593300.0|66150.0|16-NOV-2017
+
+sqlite> select count(*) from test4;
+60
+
++++
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
