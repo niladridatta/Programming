@@ -1,0 +1,577 @@
+
+Amazon Linux:
+--------------
+
+[root@ip-172-31-32-39 ~]# uname -a
+Linux ip-172-31-32-39 4.9.62-21.56.amzn1.x86_64 #1 SMP Thu Nov 16 05:37:08 UTC 2017 x86_64 x86_64 x86_64 GNU/Linux
+
+[ec2-user@ip-172-31-32-39 ~]$ sudo su -
+
+[root@ip-172-31-32-39 ~]# yum update all
+
+[root@ip-172-31-32-39 ~]# python --version
+Python 2.7.12
+
+[root@ip-172-31-32-39 ~]# yum install python34 -y
+
+[root@ip-172-31-32-39 ~]# python3 --version
+Python 3.4.3
+
+[root@ip-172-31-32-39 ~]# sqlite3 --version
+3.7.17 2013-05-20 00:56:22 118a3b35693b134d56ebd780123b7fd6f1497668
+
++++
+
+[root@ip-172-31-32-39 Downloads]# cat download_links.txt
+https://www.nseindia.com/content/historical/DERIVATIVES/2017/NOV/fo13NOV2017bhav.csv.zip
+https://www.nseindia.com/content/historical/DERIVATIVES/2017/NOV/fo14NOV2017bhav.csv.zip
+https://www.nseindia.com/content/historical/DERIVATIVES/2017/NOV/fo15NOV2017bhav.csv.zip
+https://www.nseindia.com/content/historical/DERIVATIVES/2017/NOV/fo16NOV2017bhav.csv.zip
+https://www.nseindia.com/content/historical/DERIVATIVES/2017/NOV/fo17NOV2017bhav.csv.zip
+
+[root@ip-172-31-32-39 Downloads]# cat download_bhav.sh
+#! /bin/sh
+
+links_file='download_links.txt'
+echo Getting links from $links_file
+
+bhav_dir='bhav'
+cd $bhav_dir
+echo Downloading bhavs to `pwd`
+
+for i in `cat ../$links_file`
+do
+  echo
+  echo $i | cut -b68-76
+  echo
+  wget --user-agent="Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36" $i
+done
+
+echo
+
+[root@ip-172-31-32-39 Downloads]# cat extract_bhav.sh
+#! /bin/sh
+
+bhav_dir='bhav'
+echo Taking bhavs from $bhav_dir
+
+extract_dir='extracted'
+echo Extracting to $extract_dir
+
+for i in `ls $bhav_dir`
+do
+  echo
+  echo $i
+  unzip $bhav_dir/$i -d $extract_dir
+done
+
+echo
+
++++
+
+[root@ip-172-31-32-39 Downloads]# cat generate_out_file.py
+#! /usr/bin/python3
+
+import os, zipfile
+import csv
+import sys
+
+bhav_dir = '/root/Downloads/bhav'
+extension = 'zip'
+print("Taking Bhavs from", bhav_dir)
+
+print()
+print("Bhav DIR:")
+bhav_files = os.listdir(bhav_dir)
+print(bhav_files)
+print()
+
+os.chdir(bhav_dir)
+
+extract_dir = '/root/Downloads/extracted'
+print("Extracting to", extract_dir)
+print()
+
+for file in os.listdir(bhav_dir):
+        if file.endswith(extension):
+                file_name = os.path.abspath(file)
+                zip_ref = zipfile.ZipFile(file_name)
+                zip_ref.extractall(extract_dir)
+                zip_ref.close()
+
+print("Extract DIR:")
+extracted_files = os.listdir(extract_dir)
+print(extracted_files)
+print()
+
+out_dir = '/root/Downloads/output'
+
+os.chdir(extract_dir)
+
+for dat_file_name in extracted_files:
+        date = dat_file_name[2:11]
+        out_file_name = "out_" + date + ".csv"
+
+        dat_file = extract_dir + "/" + dat_file_name
+        out_file = out_dir + "/" + dat_file_name
+
+        print("dat_file: ", dat_file)
+        print("out_file: ", out_file)
+        print()
+
+        dat_file_hand = open(dat_file)
+        dat_reader = csv.reader(dat_file_hand)
+
+        out_file_hand = open(out_file, 'w')
+        out_writer = csv.writer(out_file_hand, lineterminator='\n')
+
+        data = []
+
+        data.append(["SYMBOL", "INSTRUMENT", "EXPIRY_DT", "STRIKE_PR", "OPTION_TYP", "CLOSE", "OPEN_INT", "CHG_IN_OI", "TIMESTAMP"])
+        out_writer.writerow(["SYMBOL", "INSTRUMENT", "EXPIRY_DT", "STRIKE_PR", "OPTION_TYP", "CLOSE", "OPEN_INT", "CHG_IN_OI", "TIMESTAMP"])
+
+        cur_str = 10200
+        low_str = cur_str - 700
+        upr_str = cur_str + 700
+
+        cur_exp = '30-Nov-2017'
+        nxt_exp = '28-Dec-2017'
+
+        for row in dat_reader:
+
+                if ( row[1].strip() == 'NIFTY' and ( int(row[3]) % 100 == 0 ) and row[2] == cur_exp) or ( row[1].strip() == 'NIFTY' and ( int(row[3]) % 100 == 0 ) and row[2] == nxt_exp):
+
+                        SYMBOL = row[1]
+                        EXPIRY_DT = row[2]
+                        INSTRUMENT = row[0]
+                        STRIKE_PR = int(float(row[3]))
+                        OPTION_TYP = row[4]
+                        CLOSE = float(row[8])
+                        OPEN_INT = int(row[12])
+                        CHG_IN_OI = int(row[13])
+                        TIMESTAMP = row[14]
+
+                        if STRIKE_PR >= low_str and STRIKE_PR <= upr_str:
+
+                                data.append([SYMBOL, INSTRUMENT, EXPIRY_DT, STRIKE_PR, OPTION_TYP, CLOSE, OPEN_INT, CHG_IN_OI, TIMESTAMP])
+                                out_writer.writerow([SYMBOL, INSTRUMENT, EXPIRY_DT, STRIKE_PR, OPTION_TYP, CLOSE, OPEN_INT, CHG_IN_OI, TIMESTAMP])
+
+        dat_file_hand.close()
+        out_file_hand.close()
+
+        for dat in data:
+                print(dat)
+
+        print("\nRecords: ", len(data) - 1)
+        print()
+
+
+[root@ip-172-31-32-39 Downloads]# ./generate_out_file.py
+Taking Bhavs from /root/Downloads/bhav
+
+Bhav DIR:
+['fo14NOV2017bhav.csv.zip', 'fo13NOV2017bhav.csv.zip']
+
+Extracting to /root/Downloads/extracted
+
+Extract DIR:
+['fo13NOV2017bhav.csv', 'fo14NOV2017bhav.csv']
+
+dat_file:  /root/Downloads/extracted/fo13NOV2017bhav.csv
+out_file:  /root/Downloads/output/fo13NOV2017bhav.csv
+
+['SYMBOL', 'INSTRUMENT', 'EXPIRY_DT', 'STRIKE_PR', 'OPTION_TYP', 'CLOSE', 'OPEN_INT', 'CHG_IN_OI', 'TIMESTAMP']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 9500, 'CE', 762.75, 540825, -2400, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 9600, 'CE', 675.0, 213525, -4575, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 9700, 'CE', 573.9, 267975, -7725, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 9800, 'CE', 480.4, 271050, -675, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 9900, 'CE', 386.55, 681000, 12450, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10000, 'CE', 300.35, 905400, -10125, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10100, 'CE', 219.1, 862350, 8100, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10200, 'CE', 148.8, 1343925, 25575, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10300, 'CE', 93.4, 4002900, 732825, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10400, 'CE', 53.15, 4838850, 1084650, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10500, 'CE', 28.1, 5523525, 948900, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10600, 'CE', 13.5, 3819000, 17475, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10700, 'CE', 6.65, 3559575, 413775, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10800, 'CE', 3.15, 2927475, -32250, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10900, 'CE', 2.25, 1326300, -11250, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 9500, 'PE', 4.85, 1653225, 22650, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 9600, 'PE', 6.2, 1614675, 48075, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 9700, 'PE', 9.4, 1542450, -27525, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 9800, 'PE', 14.1, 1358400, -12075, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 9900, 'PE', 21.8, 2163825, -50325, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10000, 'PE', 33.65, 4669050, -312825, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10100, 'PE', 51.0, 3492300, -563325, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10200, 'PE', 79.4, 4914900, -703800, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10300, 'PE', 120.25, 4551750, -357300, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10400, 'PE', 176.3, 1886475, -217800, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10500, 'PE', 248.85, 1070250, -42375, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10600, 'PE', 332.75, 513750, -41700, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10700, 'PE', 424.35, 266100, -10275, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10800, 'PE', 520.8, 39900, 2775, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10900, 'PE', 615.95, 6600, 225, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 9500, 'CE', 828.5, 924150, 375, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 9600, 'CE', 720.0, 17475, 225, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 9700, 'CE', 639.05, 99000, -4875, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 9800, 'CE', 548.4, 133425, -4575, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 9900, 'CE', 465.1, 135975, 1950, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10000, 'CE', 384.0, 2310975, 39900, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10100, 'CE', 312.9, 273225, 3225, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10200, 'CE', 238.15, 472800, 9675, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10300, 'CE', 177.9, 670425, 86775, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10400, 'CE', 129.05, 493950, 57300, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10500, 'CE', 90.15, 1929600, 67425, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10600, 'CE', 59.3, 939225, 77550, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10700, 'CE', 38.4, 474600, 26325, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10800, 'CE', 24.0, 300075, -14925, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10900, 'CE', 15.35, 215325, 11550, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 9500, 'PE', 24.2, 2497550, 40650, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 9600, 'PE', 28.75, 911750, 14025, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 9700, 'PE', 35.8, 989250, 73725, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 9800, 'PE', 47.35, 445800, 24975, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 9900, 'PE', 61.25, 595900, 11025, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10000, 'PE', 80.65, 5419725, -11925, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10100, 'PE', 101.5, 929400, 19125, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10200, 'PE', 131.4, 1613225, -28875, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10300, 'PE', 168.65, 1006050, 38625, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10400, 'PE', 213.85, 861850, -20400, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10500, 'PE', 273.3, 1477425, -14250, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10600, 'PE', 343.4, 226750, -750, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10700, 'PE', 413.75, 248325, -375, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10800, 'PE', 490.45, 7350, 150, '13-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10900, 'PE', 515.0, 75, 0, '13-NOV-2017']
+
+Records:  60
+
+dat_file:  /root/Downloads/extracted/fo14NOV2017bhav.csv
+out_file:  /root/Downloads/output/fo14NOV2017bhav.csv
+
+['SYMBOL', 'INSTRUMENT', 'EXPIRY_DT', 'STRIKE_PR', 'OPTION_TYP', 'CLOSE', 'OPEN_INT', 'CHG_IN_OI', 'TIMESTAMP']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 9500, 'CE', 739.7, 432750, -108075, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 9600, 'CE', 632.0, 199800, -13725, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 9700, 'CE', 534.85, 257400, -10575, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 9800, 'CE', 443.25, 261375, -9675, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 9900, 'CE', 352.15, 667575, -13425, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10000, 'CE', 263.9, 872175, -33225, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10100, 'CE', 185.95, 875550, 13200, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10200, 'CE', 121.55, 1633500, 289575, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10300, 'CE', 72.1, 4375650, 372750, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10400, 'CE', 38.35, 4916700, 77850, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10500, 'CE', 19.0, 5631975, 108450, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10600, 'CE', 8.75, 3598200, -220800, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10700, 'CE', 4.5, 3539475, -20100, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10800, 'CE', 2.4, 2537325, -390150, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10900, 'CE', 1.85, 1333125, 6825, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 9500, 'PE', 4.15, 1672350, 19125, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 9600, 'PE', 5.25, 1663200, 48525, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 9700, 'PE', 7.75, 1522425, -20025, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 9800, 'PE', 12.3, 1515900, 157500, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 9900, 'PE', 19.6, 2110350, -53475, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10000, 'PE', 32.3, 4431750, -237300, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10100, 'PE', 52.65, 3022725, -469575, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10200, 'PE', 85.35, 4581375, -333525, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10300, 'PE', 132.1, 3883950, -667800, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10400, 'PE', 196.7, 1564950, -321525, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10500, 'PE', 275.6, 978075, -92175, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10600, 'PE', 361.0, 408225, -105525, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10700, 'PE', 459.95, 248550, -17550, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10800, 'PE', 556.0, 38625, -1275, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '30-Nov-2017', 10900, 'PE', 656.85, 6600, 0, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 9500, 'CE', 782.9, 931350, 7200, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 9600, 'CE', 720.0, 17475, 0, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 9700, 'CE', 604.2, 119100, 20100, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 9800, 'CE', 512.65, 130650, -2775, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 9900, 'CE', 424.7, 166425, 30450, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10000, 'CE', 350.4, 2348175, 37200, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10100, 'CE', 275.45, 308400, 35175, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10200, 'CE', 207.9, 504375, 31575, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10300, 'CE', 150.05, 742350, 71925, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10400, 'CE', 107.8, 636825, 142875, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10500, 'CE', 75.3, 1912725, -16875, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10600, 'CE', 48.8, 1096500, 157275, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10700, 'CE', 29.9, 528075, 53475, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10800, 'CE', 19.2, 318075, 18000, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10900, 'CE', 12.3, 206700, -8625, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 9500, 'PE', 23.4, 2469275, -28275, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 9600, 'PE', 27.55, 922100, 10350, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 9700, 'PE', 35.35, 1021725, 32475, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 9800, 'PE', 46.95, 468975, 23175, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 9900, 'PE', 62.35, 616825, 20925, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10000, 'PE', 82.85, 5471175, 51450, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10100, 'PE', 104.1, 1019250, 89850, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10200, 'PE', 138.3, 1616900, 3675, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10300, 'PE', 178.0, 1011075, 5025, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10400, 'PE', 229.45, 861775, -75, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10500, 'PE', 292.75, 1471950, -5475, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10600, 'PE', 365.0, 226825, 75, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10700, 'PE', 443.45, 261000, 12675, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10800, 'PE', 490.45, 7350, 0, '14-NOV-2017']
+['NIFTY', 'OPTIDX', '28-Dec-2017', 10900, 'PE', 515.0, 75, 0, '14-NOV-2017']
+
+Records:  60
+
++++
+
+[root@ip-172-31-32-39 Downloads]# cat populate_table.py
+#! /usr/bin/python3
+
+import os
+import csv
+import sqlite3
+
+out_dir = '/root/Downloads/output'
+
+print("Output DIR:")
+out_files = [file for file in os.listdir(out_dir) if file.endswith(".csv")]
+print(out_files)
+print()
+
+os.chdir(out_dir)
+
+for dat_file_name in out_files:
+        dat_file = out_dir + "/" + dat_file_name
+
+        print("dat_file: ", dat_file)
+        print()
+
+        dat_file_hand = open(dat_file)
+        dat_reader = csv.reader(dat_file_hand)
+
+        next(dat_reader)
+
+        db_name = 'example.db'
+        conn = sqlite3.connect(db_name)
+
+        c = conn.cursor()
+
+        # Drop table if exists
+        # c.execute('DROP TABLE IF EXISTS test10')
+
+        ## ["SYMBOL", "INSTRUMENT", "EXPIRY_DT", "STRIKE_PR", "OPTION_TYP", "CLOSE", "OPEN_INT", "CHG_IN_OI", "TIMESTAMP"]
+
+        # Create table
+        c.execute('CREATE TABLE IF NOT EXISTS test10 (SYMBOL text, INSTRUMENT text, EXPIRY_DT test, STRIKE_PR real, OPTION_TYP text, CLOSE real, CHG_IN_OI real, OPEN_INT real, TIMESTAMP text)')
+
+        # Populate table
+        for row in dat_reader:
+                c.execute('INSERT INTO test10 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', row)
+
+        conn.commit()
+
+        # Display table
+        for row in c.execute('SELECT * FROM test10 ORDER BY EXPIRY_DT, STRIKE_PR'):
+                print(row)
+
+        # Count records
+        c.execute('SELECT * FROM test10')
+        records = c.fetchall()
+
+        print("\nRecords: ", len(records))
+        print()
+
+        conn.close()
+
+[root@ip-172-31-32-39 Downloads]# ./populate_table.py
+Output DIR:
+['fo13NOV2017bhav.csv', 'fo14NOV2017bhav.csv']
+
+dat_file:  /root/Downloads/output/fo13NOV2017bhav.csv
+
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9500.0, 'CE', 828.5, 924150.0, 375.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9500.0, 'PE', 24.2, 2497550.0, 40650.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9600.0, 'CE', 720.0, 17475.0, 225.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9600.0, 'PE', 28.75, 911750.0, 14025.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9700.0, 'CE', 639.05, 99000.0, -4875.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9700.0, 'PE', 35.8, 989250.0, 73725.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9800.0, 'CE', 548.4, 133425.0, -4575.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9800.0, 'PE', 47.35, 445800.0, 24975.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9900.0, 'CE', 465.1, 135975.0, 1950.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9900.0, 'PE', 61.25, 595900.0, 11025.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10000.0, 'CE', 384.0, 2310975.0, 39900.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10000.0, 'PE', 80.65, 5419725.0, -11925.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10100.0, 'CE', 312.9, 273225.0, 3225.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10100.0, 'PE', 101.5, 929400.0, 19125.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10200.0, 'CE', 238.15, 472800.0, 9675.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10200.0, 'PE', 131.4, 1613225.0, -28875.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10300.0, 'CE', 177.9, 670425.0, 86775.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10300.0, 'PE', 168.65, 1006050.0, 38625.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10400.0, 'CE', 129.05, 493950.0, 57300.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10400.0, 'PE', 213.85, 861850.0, -20400.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10500.0, 'CE', 90.15, 1929600.0, 67425.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10500.0, 'PE', 273.3, 1477425.0, -14250.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10600.0, 'CE', 59.3, 939225.0, 77550.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10600.0, 'PE', 343.4, 226750.0, -750.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10700.0, 'CE', 38.4, 474600.0, 26325.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10700.0, 'PE', 413.75, 248325.0, -375.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10800.0, 'CE', 24.0, 300075.0, -14925.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10800.0, 'PE', 490.45, 7350.0, 150.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10900.0, 'CE', 15.35, 215325.0, 11550.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10900.0, 'PE', 515.0, 75.0, 0.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9500.0, 'CE', 762.75, 540825.0, -2400.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9500.0, 'PE', 4.85, 1653225.0, 22650.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9600.0, 'CE', 675.0, 213525.0, -4575.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9600.0, 'PE', 6.2, 1614675.0, 48075.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9700.0, 'CE', 573.9, 267975.0, -7725.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9700.0, 'PE', 9.4, 1542450.0, -27525.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9800.0, 'CE', 480.4, 271050.0, -675.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9800.0, 'PE', 14.1, 1358400.0, -12075.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9900.0, 'CE', 386.55, 681000.0, 12450.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9900.0, 'PE', 21.8, 2163825.0, -50325.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10000.0, 'CE', 300.35, 905400.0, -10125.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10000.0, 'PE', 33.65, 4669050.0, -312825.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10100.0, 'CE', 219.1, 862350.0, 8100.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10100.0, 'PE', 51.0, 3492300.0, -563325.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10200.0, 'CE', 148.8, 1343925.0, 25575.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10200.0, 'PE', 79.4, 4914900.0, -703800.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10300.0, 'CE', 93.4, 4002900.0, 732825.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10300.0, 'PE', 120.25, 4551750.0, -357300.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10400.0, 'CE', 53.15, 4838850.0, 1084650.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10400.0, 'PE', 176.3, 1886475.0, -217800.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10500.0, 'CE', 28.1, 5523525.0, 948900.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10500.0, 'PE', 248.85, 1070250.0, -42375.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10600.0, 'CE', 13.5, 3819000.0, 17475.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10600.0, 'PE', 332.75, 513750.0, -41700.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10700.0, 'CE', 6.65, 3559575.0, 413775.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10700.0, 'PE', 424.35, 266100.0, -10275.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10800.0, 'CE', 3.15, 2927475.0, -32250.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10800.0, 'PE', 520.8, 39900.0, 2775.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10900.0, 'CE', 2.25, 1326300.0, -11250.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10900.0, 'PE', 615.95, 6600.0, 225.0, '13-NOV-2017')
+
+Records:  60
+
+dat_file:  /root/Downloads/output/fo14NOV2017bhav.csv
+
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9500.0, 'CE', 828.5, 924150.0, 375.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9500.0, 'PE', 24.2, 2497550.0, 40650.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9500.0, 'CE', 782.9, 931350.0, 7200.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9500.0, 'PE', 23.4, 2469275.0, -28275.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9600.0, 'CE', 720.0, 17475.0, 225.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9600.0, 'PE', 28.75, 911750.0, 14025.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9600.0, 'CE', 720.0, 17475.0, 0.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9600.0, 'PE', 27.55, 922100.0, 10350.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9700.0, 'CE', 639.05, 99000.0, -4875.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9700.0, 'PE', 35.8, 989250.0, 73725.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9700.0, 'CE', 604.2, 119100.0, 20100.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9700.0, 'PE', 35.35, 1021725.0, 32475.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9800.0, 'CE', 548.4, 133425.0, -4575.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9800.0, 'PE', 47.35, 445800.0, 24975.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9800.0, 'CE', 512.65, 130650.0, -2775.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9800.0, 'PE', 46.95, 468975.0, 23175.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9900.0, 'CE', 465.1, 135975.0, 1950.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9900.0, 'PE', 61.25, 595900.0, 11025.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9900.0, 'CE', 424.7, 166425.0, 30450.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 9900.0, 'PE', 62.35, 616825.0, 20925.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10000.0, 'CE', 384.0, 2310975.0, 39900.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10000.0, 'PE', 80.65, 5419725.0, -11925.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10000.0, 'CE', 350.4, 2348175.0, 37200.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10000.0, 'PE', 82.85, 5471175.0, 51450.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10100.0, 'CE', 312.9, 273225.0, 3225.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10100.0, 'PE', 101.5, 929400.0, 19125.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10100.0, 'CE', 275.45, 308400.0, 35175.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10100.0, 'PE', 104.1, 1019250.0, 89850.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10200.0, 'CE', 238.15, 472800.0, 9675.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10200.0, 'PE', 131.4, 1613225.0, -28875.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10200.0, 'CE', 207.9, 504375.0, 31575.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10200.0, 'PE', 138.3, 1616900.0, 3675.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10300.0, 'CE', 177.9, 670425.0, 86775.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10300.0, 'PE', 168.65, 1006050.0, 38625.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10300.0, 'CE', 150.05, 742350.0, 71925.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10300.0, 'PE', 178.0, 1011075.0, 5025.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10400.0, 'CE', 129.05, 493950.0, 57300.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10400.0, 'PE', 213.85, 861850.0, -20400.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10400.0, 'CE', 107.8, 636825.0, 142875.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10400.0, 'PE', 229.45, 861775.0, -75.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10500.0, 'CE', 90.15, 1929600.0, 67425.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10500.0, 'PE', 273.3, 1477425.0, -14250.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10500.0, 'CE', 75.3, 1912725.0, -16875.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10500.0, 'PE', 292.75, 1471950.0, -5475.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10600.0, 'CE', 59.3, 939225.0, 77550.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10600.0, 'PE', 343.4, 226750.0, -750.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10600.0, 'CE', 48.8, 1096500.0, 157275.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10600.0, 'PE', 365.0, 226825.0, 75.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10700.0, 'CE', 38.4, 474600.0, 26325.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10700.0, 'PE', 413.75, 248325.0, -375.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10700.0, 'CE', 29.9, 528075.0, 53475.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10700.0, 'PE', 443.45, 261000.0, 12675.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10800.0, 'CE', 24.0, 300075.0, -14925.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10800.0, 'PE', 490.45, 7350.0, 150.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10800.0, 'CE', 19.2, 318075.0, 18000.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10800.0, 'PE', 490.45, 7350.0, 0.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10900.0, 'CE', 15.35, 215325.0, 11550.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10900.0, 'PE', 515.0, 75.0, 0.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10900.0, 'CE', 12.3, 206700.0, -8625.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '28-Dec-2017', 10900.0, 'PE', 515.0, 75.0, 0.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9500.0, 'CE', 762.75, 540825.0, -2400.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9500.0, 'PE', 4.85, 1653225.0, 22650.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9500.0, 'CE', 739.7, 432750.0, -108075.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9500.0, 'PE', 4.15, 1672350.0, 19125.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9600.0, 'CE', 675.0, 213525.0, -4575.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9600.0, 'PE', 6.2, 1614675.0, 48075.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9600.0, 'CE', 632.0, 199800.0, -13725.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9600.0, 'PE', 5.25, 1663200.0, 48525.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9700.0, 'CE', 573.9, 267975.0, -7725.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9700.0, 'PE', 9.4, 1542450.0, -27525.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9700.0, 'CE', 534.85, 257400.0, -10575.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9700.0, 'PE', 7.75, 1522425.0, -20025.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9800.0, 'CE', 480.4, 271050.0, -675.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9800.0, 'PE', 14.1, 1358400.0, -12075.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9800.0, 'CE', 443.25, 261375.0, -9675.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9800.0, 'PE', 12.3, 1515900.0, 157500.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9900.0, 'CE', 386.55, 681000.0, 12450.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9900.0, 'PE', 21.8, 2163825.0, -50325.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9900.0, 'CE', 352.15, 667575.0, -13425.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 9900.0, 'PE', 19.6, 2110350.0, -53475.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10000.0, 'CE', 300.35, 905400.0, -10125.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10000.0, 'PE', 33.65, 4669050.0, -312825.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10000.0, 'CE', 263.9, 872175.0, -33225.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10000.0, 'PE', 32.3, 4431750.0, -237300.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10100.0, 'CE', 219.1, 862350.0, 8100.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10100.0, 'PE', 51.0, 3492300.0, -563325.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10100.0, 'CE', 185.95, 875550.0, 13200.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10100.0, 'PE', 52.65, 3022725.0, -469575.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10200.0, 'CE', 148.8, 1343925.0, 25575.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10200.0, 'PE', 79.4, 4914900.0, -703800.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10200.0, 'CE', 121.55, 1633500.0, 289575.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10200.0, 'PE', 85.35, 4581375.0, -333525.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10300.0, 'CE', 93.4, 4002900.0, 732825.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10300.0, 'PE', 120.25, 4551750.0, -357300.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10300.0, 'CE', 72.1, 4375650.0, 372750.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10300.0, 'PE', 132.1, 3883950.0, -667800.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10400.0, 'CE', 53.15, 4838850.0, 1084650.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10400.0, 'PE', 176.3, 1886475.0, -217800.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10400.0, 'CE', 38.35, 4916700.0, 77850.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10400.0, 'PE', 196.7, 1564950.0, -321525.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10500.0, 'CE', 28.1, 5523525.0, 948900.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10500.0, 'PE', 248.85, 1070250.0, -42375.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10500.0, 'CE', 19.0, 5631975.0, 108450.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10500.0, 'PE', 275.6, 978075.0, -92175.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10600.0, 'CE', 13.5, 3819000.0, 17475.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10600.0, 'PE', 332.75, 513750.0, -41700.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10600.0, 'CE', 8.75, 3598200.0, -220800.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10600.0, 'PE', 361.0, 408225.0, -105525.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10700.0, 'CE', 6.65, 3559575.0, 413775.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10700.0, 'PE', 424.35, 266100.0, -10275.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10700.0, 'CE', 4.5, 3539475.0, -20100.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10700.0, 'PE', 459.95, 248550.0, -17550.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10800.0, 'CE', 3.15, 2927475.0, -32250.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10800.0, 'PE', 520.8, 39900.0, 2775.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10800.0, 'CE', 2.4, 2537325.0, -390150.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10800.0, 'PE', 556.0, 38625.0, -1275.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10900.0, 'CE', 2.25, 1326300.0, -11250.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10900.0, 'PE', 615.95, 6600.0, 225.0, '13-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10900.0, 'CE', 1.85, 1333125.0, 6825.0, '14-NOV-2017')
+('NIFTY', 'OPTIDX', '30-Nov-2017', 10900.0, 'PE', 656.85, 6600.0, 0.0, '14-NOV-2017')
+
+Records:  120
+
+[root@ip-172-31-32-39 output]# ls
+example.db  fo13NOV2017bhav.csv  fo14NOV2017bhav.csv
+
+[root@ip-172-31-32-39 output]# sqlite3 example.db
+sqlite> select count(*) from test10;
+120
+
++++
+
